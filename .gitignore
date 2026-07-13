@@ -1,0 +1,30 @@
+# macOS
+.DS_Store
+
+# Xcode
+build/
+DerivedData/
+xcuserdata/
+*.xcuserstate
+*.xccheckout
+*.xcscmblueprint
+
+# Swift Package Manager
+.build/
+.swiftpm/
+Package.resolved
+
+# Local application data
+*.sqlite
+*.sqlite-*
+*.db
+*.log
+*.crash
+Backups/
+
+# Local configuration and release artifacts
+.env
+.env.*
+dist/
+*.dmg
+*.zip

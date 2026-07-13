@@ -1,0 +1,26 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build-and-test:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Core regression tests
+        run: zsh Tests/run_core_tests.sh
+
+      - name: Build
+        run: |
+          xcodebuild \
+            -project WorkLog.xcodeproj \
+            -scheme WorkLog \
+            -configuration Debug \
+            -derivedDataPath build/DerivedData \
+            CODE_SIGNING_ALLOWED=NO \
+            build
