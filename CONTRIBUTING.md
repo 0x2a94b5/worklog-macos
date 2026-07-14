@@ -20,7 +20,12 @@ xcodebuild \
   -derivedDataPath build/DerivedData \
   CODE_SIGNING_ALLOWED=NO \
   build
+
+zsh Tests/run_app_smoke_test.sh
+zsh Tests/run_ui_interaction_test.sh
 ```
+
+UI 交互测试使用隔离临时数据库，执行终端需要具有 macOS“辅助功能”权限。
 
 ## 提交要求
 

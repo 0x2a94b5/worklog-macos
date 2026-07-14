@@ -4,6 +4,23 @@ struct MainView: View {
     @EnvironmentObject private var app: AppViewModel
 
     var body: some View {
+        Group {
+            if app.requiresDatabaseRecovery {
+                DatabaseRecoveryView()
+            } else {
+                workLogContent
+            }
+        }
+        .frame(minWidth: 680, minHeight: 600)
+        .alert(item: Binding(
+            get: { app.errorMessage.map { AlertMessage(message: $0) } },
+            set: { _ in app.errorMessage = nil }
+        )) { alert in
+            Alert(title: Text("操作失败"), message: Text(alert.message), dismissButton: .default(Text("知道了")))
+        }
+    }
+
+    private var workLogContent: some View {
         NavigationView {
             SidebarView()
                 .frame(minWidth: 200, idealWidth: 230)
@@ -11,7 +28,6 @@ struct MainView: View {
             WorkListView()
                 .frame(minWidth: 420, idealWidth: 540)
         }
-        .frame(minWidth: 680, minHeight: 600)
         .toolbar {
             ToolbarItem(placement: .navigation) {
                 Button {
@@ -58,12 +74,6 @@ struct MainView: View {
         .sheet(isPresented: $app.showMonthlyReviewSheet) {
             MonthlyReviewView()
                 .environmentObject(app)
-        }
-        .alert(item: Binding(
-            get: { app.errorMessage.map { AlertMessage(message: $0) } },
-            set: { _ in app.errorMessage = nil }
-        )) { alert in
-            Alert(title: Text("操作失败"), message: Text(alert.message), dismissButton: .default(Text("知道了")))
         }
     }
 }

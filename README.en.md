@@ -20,7 +20,7 @@ The app is designed for people who organize work by month and prefer native inte
 - Create the current month automatically
 - Append tasks from Markdown without replacing existing data
 - Export standard Markdown without internal metadata such as categories, notes, or timestamps
-- Store data locally in SQLite with migrations, transactions, and daily rolling backups
+- Store data locally in SQLite with migrations, transactions, cross-day rolling backups, and recovery
 - Restore a permanently deleted task with `Command-Z` during the current session
 - Generate and copy a monthly review
 
@@ -37,7 +37,7 @@ The app interface is currently Chinese-first. File formats, keyboard interaction
    - [ ] Child task
 ```
 
-When fields are missing during import, status defaults to incomplete, category is inferred from the title, notes remain empty, and timestamps use the import time. Import only appends to the selected month. Edit an existing task from the checklist when changes are required.
+When fields are missing during import, status defaults to incomplete, category defaults to Uncategorized, notes remain empty, and timestamps use the import time. Import only appends to the selected month. Edit an existing task from the checklist when changes are required.
 
 ## Build
 
@@ -81,6 +81,15 @@ Run core regression tests with:
 zsh Tests/run_core_tests.sh
 ```
 
+Run the startup smoke test and input interaction test with:
+
+```bash
+zsh Tests/run_app_smoke_test.sh
+zsh Tests/run_ui_interaction_test.sh
+```
+
+The UI interaction test uses an isolated temporary database and does not read or modify production data. The terminal running it needs macOS Accessibility permission.
+
 Production distribution requires Developer ID signing, Hardened Runtime, and Apple notarization. The unsigned local build is intended only for development and verification.
 
 ## Data and Backups
@@ -97,7 +106,7 @@ Database backups:
 ~/Library/Application Support/WorkLog/Backups/Database/
 ```
 
-WorkLog creates a complete SQLite backup on the first launch of each day and retains the latest 14 backups. It also backs up the database before migrations. Markdown export is a readable interchange copy and does not replace a full database backup.
+WorkLog creates one complete SQLite backup per day and retains the latest 14 backups. During long-running sessions, it checks in the background after a calendar-day change, wake, or app activation. It also backs up the database before migrations. If the database cannot be opened, WorkLog offers a recovery view that validates internal backups and preserves the failed database before replacement. Markdown export is a readable interchange copy and does not replace a full database backup.
 
 WorkLog does not use a network service. Tasks, categories, and backups remain on the local Mac. See the [Privacy Notice](PRIVACY.en.md) for details. The public repository contains generic examples and demonstration screenshots only; it does not include user databases, backups, or real work records.
 
@@ -109,7 +118,7 @@ WorkLog/
 ├── Models/           Month, task, and status models
 ├── Database/         SQLite wrapper, migrations, and backups
 ├── Repositories/     Data access and transactions
-├── Services/         Markdown parsing and category inference
+├── Services/         Markdown parsing, monthly summaries, and category defaults
 ├── ViewModels/       UI state and application operations
 ├── Views/            SwiftUI views
 └── Utilities/        Date utilities

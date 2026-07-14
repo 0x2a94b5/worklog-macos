@@ -20,7 +20,12 @@ xcodebuild \
   -derivedDataPath build/DerivedData \
   CODE_SIGNING_ALLOWED=NO \
   build
+
+zsh Tests/run_app_smoke_test.sh
+zsh Tests/run_ui_interaction_test.sh
 ```
+
+The UI interaction test uses an isolated temporary database. The terminal running it needs macOS Accessibility permission.
 
 ## Submission Requirements
 

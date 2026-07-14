@@ -18,6 +18,7 @@ struct WorkLogApp: App {
                     appViewModel.createEmptyItem()
                 }
                 .keyboardShortcut("n", modifiers: [.command])
+                .disabled(appViewModel.requiresDatabaseRecovery)
             }
 
             CommandMenu("工作项") {
@@ -25,6 +26,7 @@ struct WorkLogApp: App {
                     appViewModel.requestSearchFocus()
                 }
                 .keyboardShortcut("f", modifiers: [.command])
+                .disabled(appViewModel.requiresDatabaseRecovery)
 
                 Divider()
 
@@ -32,16 +34,19 @@ struct WorkLogApp: App {
                     appViewModel.showImportSheet = true
                 }
                 .keyboardShortcut("i", modifiers: [.command, .shift])
+                .disabled(appViewModel.requiresDatabaseRecovery)
 
                 Button("导出 Markdown") {
                     appViewModel.exportCurrentMonthToFile()
                 }
                 .keyboardShortcut("e", modifiers: [.command, .shift])
+                .disabled(appViewModel.requiresDatabaseRecovery)
 
                 Button("月度复盘") {
                     appViewModel.showMonthlyReviewSheet = true
                 }
                 .keyboardShortcut("r", modifiers: [.command, .shift])
+                .disabled(appViewModel.requiresDatabaseRecovery)
 
                 Divider()
 
@@ -49,6 +54,7 @@ struct WorkLogApp: App {
                     appViewModel.createDatabaseBackup()
                 }
                 .keyboardShortcut("b", modifiers: [.command, .shift])
+                .disabled(appViewModel.requiresDatabaseRecovery)
 
                 Divider()
 
@@ -56,7 +62,7 @@ struct WorkLogApp: App {
                     appViewModel.requestDeleteSelectedItem()
                 }
                 .keyboardShortcut(.delete, modifiers: [])
-                .disabled(appViewModel.selectedItem == nil)
+                .disabled(appViewModel.requiresDatabaseRecovery || appViewModel.selectedItem == nil)
             }
         }
     }

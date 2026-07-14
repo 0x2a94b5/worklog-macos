@@ -176,6 +176,7 @@ struct WorkListView: View {
                             }
                             .frame(maxWidth: .infinity, minHeight: viewport.size.height, alignment: .top)
                         }
+                        .systemScrollerBehavior()
                         .onChange(of: app.selectedItemId) { itemId in
                             if editingItemId != nil, editingItemId != itemId {
                                 _ = commitEditing(keepSelectionId: itemId)
@@ -266,6 +267,7 @@ struct WorkListView: View {
                         }
                     }
                 }
+                .systemScrollerBehavior()
             }
         }
     }
@@ -275,6 +277,7 @@ struct WorkListView: View {
         let content = WorkItemRowView(
             item: row.item,
             childCount: row.childCount,
+            completedChildCount: row.completedChildCount,
             isCollapsed: collapsedItemIds.contains(row.item.id),
             isEditing: editingItemId == row.item.id,
             editingTitle: $editingTitle,
@@ -322,6 +325,7 @@ struct WorkListView: View {
             WorkItemRowView(
                 item: row.item,
                 childCount: row.childCount,
+                completedChildCount: row.completedChildCount,
                 isCollapsed: collapsedItemIds.contains(row.item.id),
                 isEditing: editingItemId == row.item.id,
                 editingTitle: $editingTitle,
@@ -350,7 +354,7 @@ struct WorkListView: View {
 
     private var visibleItems: [WorkListRow] {
         guard case .month = app.selectedScope else {
-            return app.items.map { WorkListRow(item: $0, childCount: 0) }
+            return app.items.map { WorkListRow(item: $0, childCount: 0, completedChildCount: 0) }
         }
 
         var rows: [WorkListRow] = []
@@ -361,9 +365,15 @@ struct WorkListView: View {
 
         for item in parentItems {
             let children = (childrenByParent[item.id] ?? []).sorted { $0.sortOrder < $1.sortOrder }
-            rows.append(WorkListRow(item: item, childCount: children.count))
+            rows.append(WorkListRow(
+                item: item,
+                childCount: children.count,
+                completedChildCount: children.filter(\.isDone).count
+            ))
             if !collapsedItemIds.contains(item.id) {
-                rows.append(contentsOf: children.map { WorkListRow(item: $0, childCount: 0) })
+                rows.append(contentsOf: children.map {
+                    WorkListRow(item: $0, childCount: 0, completedChildCount: 0)
+                })
             }
         }
 
@@ -509,6 +519,7 @@ struct WorkListView: View {
 private struct WorkListRow: Identifiable {
     let item: WorkItem
     let childCount: Int
+    let completedChildCount: Int
 
     var id: String { item.id }
 }
@@ -604,7 +615,8 @@ private struct WorkListKeyboardMonitor: NSViewRepresentable {
                 case 126:
                     self.onMoveSelection?(.up)
                     return nil
-                case 51, 117 where !event.isARepeat:
+                case 51, 117:
+                    guard !event.isARepeat else { return nil }
                     self.onDelete?()
                     return nil
                 case 49:

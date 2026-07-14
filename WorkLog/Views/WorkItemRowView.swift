@@ -10,6 +10,7 @@ struct WorkItemRowView: View {
     @EnvironmentObject private var app: AppViewModel
     let item: WorkItem
     var childCount: Int = 0
+    var completedChildCount: Int = 0
     var isCollapsed: Bool = false
     var isEditing: Bool = false
     @Binding var editingTitle: String
@@ -21,6 +22,7 @@ struct WorkItemRowView: View {
     var onCommitEditing: (() -> Void)?
     var onCancelEditing: (() -> Void)?
     @FocusState private var editingField: EditingField?
+    @State private var focusRequestID = UUID().uuidString
 
     private var isSelected: Bool {
         app.selectedItemId == item.id
@@ -73,6 +75,12 @@ struct WorkItemRowView: View {
                             .frame(minWidth: 180, maxWidth: .infinity)
                             .layoutPriority(2)
                             .focused($editingField, equals: .title)
+                            .background(
+                                TextFieldInitialFocus(
+                                    requestID: focusRequestID,
+                                    caretLocation: (editingTitle as NSString).length
+                                )
+                            )
                             .submitLabel(.done)
                             .onSubmit { onCommitEditing?() }
                             .onExitCommand { onCancelEditing?() }
@@ -87,13 +95,14 @@ struct WorkItemRowView: View {
                     }
 
                     if childCount > 0 {
-                        Text("\(childCount)")
+                        Text("\(completedChildCount)/\(childCount)")
                             .font(.caption2)
                             .padding(.horizontal, 5)
                             .padding(.vertical, 1)
                             .background(isSelected ? Color.primary.opacity(0.10) : Color.secondary.opacity(0.12))
                             .foregroundColor(isSelected ? .primary : .secondary)
                             .cornerRadius(5)
+                            .help("已完成 \(completedChildCount) / \(childCount) 个子任务")
                     }
                 }
 
@@ -161,7 +170,10 @@ struct WorkItemRowView: View {
             TapGesture(count: 2)
                 .onEnded {
                     guard !isEditing else { return }
-                    onBeginEditing?()
+                    DispatchQueue.main.async {
+                        guard !isEditing else { return }
+                        onBeginEditing?()
+                    }
                 }
         )
         .onChange(of: isEditing) { editing in
@@ -169,6 +181,7 @@ struct WorkItemRowView: View {
                 editingField = nil
                 return
             }
+            focusRequestID = UUID().uuidString
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
                 guard isEditing else { return }
                 editingField = .title
@@ -197,5 +210,125 @@ struct WorkItemRowView: View {
         let font = NSFont.systemFont(ofSize: NSFont.smallSystemFontSize)
         let textWidth = (item.module as NSString).size(withAttributes: [.font: font]).width
         return min(max(ceil(textWidth) + 16, 32), 96)
+    }
+}
+
+private struct TextFieldInitialFocus: NSViewRepresentable {
+    let requestID: String
+    let caretLocation: Int
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator()
+    }
+
+    func makeNSView(context: Context) -> NSView {
+        NSView()
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {
+        context.coordinator.focus(
+            from: nsView,
+            requestID: requestID,
+            caretLocation: caretLocation
+        )
+    }
+
+    final class Coordinator {
+        private var completedRequestID: String?
+        private var pendingWorkItem: DispatchWorkItem?
+        private var caretCorrectionWorkItem: DispatchWorkItem?
+
+        deinit {
+            pendingWorkItem?.cancel()
+            caretCorrectionWorkItem?.cancel()
+        }
+
+        func focus(from anchorView: NSView, requestID: String, caretLocation: Int) {
+            guard completedRequestID != requestID else { return }
+            pendingWorkItem?.cancel()
+            caretCorrectionWorkItem?.cancel()
+            scheduleFocus(
+                from: anchorView,
+                requestID: requestID,
+                caretLocation: caretLocation,
+                attemptsRemaining: 5
+            )
+        }
+
+        private func scheduleFocus(
+            from anchorView: NSView,
+            requestID: String,
+            caretLocation: Int,
+            attemptsRemaining: Int
+        ) {
+            let workItem = DispatchWorkItem { [weak self, weak anchorView] in
+                guard let self, let anchorView else { return }
+                guard self.completedRequestID != requestID else { return }
+
+                guard let window = anchorView.window,
+                      let textField = self.textField(containing: anchorView, in: window),
+                      window.makeFirstResponder(textField),
+                      let editor = window.fieldEditor(true, for: textField) as? NSTextView else {
+                    guard attemptsRemaining > 1 else { return }
+                    self.scheduleFocus(
+                        from: anchorView,
+                        requestID: requestID,
+                        caretLocation: caretLocation,
+                        attemptsRemaining: attemptsRemaining - 1
+                    )
+                    return
+                }
+
+                let end = min(caretLocation, (editor.string as NSString).length)
+                let caretRange = NSRange(location: end, length: 0)
+                editor.setSelectedRange(caretRange)
+                editor.scrollRangeToVisible(caretRange)
+                self.completedRequestID = requestID
+                self.scheduleCaretCorrection(
+                    editor: editor,
+                    requestID: requestID,
+                    expectedText: editor.string
+                )
+            }
+            pendingWorkItem = workItem
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.02, execute: workItem)
+        }
+
+        private func scheduleCaretCorrection(
+            editor: NSTextView,
+            requestID: String,
+            expectedText: String
+        ) {
+            let workItem = DispatchWorkItem { [weak self, weak editor] in
+                guard let self,
+                      let editor,
+                      self.completedRequestID == requestID,
+                      editor.string == expectedText else { return }
+                let end = (editor.string as NSString).length
+                let caretRange = NSRange(location: end, length: 0)
+                editor.setSelectedRange(caretRange)
+                editor.scrollRangeToVisible(caretRange)
+            }
+            caretCorrectionWorkItem = workItem
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.25, execute: workItem)
+        }
+
+        private func textField(containing anchorView: NSView, in window: NSWindow) -> NSTextField? {
+            let anchorCenter = anchorView.convert(
+                NSPoint(x: anchorView.bounds.midX, y: anchorView.bounds.midY),
+                to: nil
+            )
+            return textFields(in: window.contentView).first { textField in
+                !textField.isHidden && textField.convert(textField.bounds, to: nil).contains(anchorCenter)
+            }
+        }
+
+        private func textFields(in view: NSView?) -> [NSTextField] {
+            guard let view else { return [] }
+            return view.subviews.flatMap { subview -> [NSTextField] in
+                let current = (subview as? NSTextField).map { [$0] } ?? []
+                return current + textFields(in: subview)
+            }
+        }
     }
 }

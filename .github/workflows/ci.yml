@@ -24,3 +24,6 @@ jobs:
             -derivedDataPath build/DerivedData \
             CODE_SIGNING_ALLOWED=NO \
             build
+
+      - name: App startup smoke test
+        run: zsh Tests/run_app_smoke_test.sh

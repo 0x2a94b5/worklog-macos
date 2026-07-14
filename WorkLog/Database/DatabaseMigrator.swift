@@ -1,7 +1,7 @@
 import Foundation
 
 enum DatabaseMigrator {
-    private static let currentVersion = 3
+    static let currentVersion = 3
 
     static func migrate(_ db: SQLiteDatabase) throws {
         let version = try db.query("PRAGMA user_version").first?["user_version"]?.intValue ?? 0

@@ -10,11 +10,11 @@ enum SQLiteDatabaseError: Error, LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .openFailed(let message): return "SQLite open failed: \(message)"
-        case .prepareFailed(let message): return "SQLite prepare failed: \(message)"
-        case .stepFailed(let message): return "SQLite step failed: \(message)"
-        case .bindFailed(let message): return "SQLite bind failed: \(message)"
-        case .backupFailed(let message): return "SQLite backup failed: \(message)"
+        case .openFailed(let message): return "无法打开数据库：\(message)"
+        case .prepareFailed(let message): return "数据库语句准备失败：\(message)"
+        case .stepFailed(let message): return "数据库操作失败：\(message)"
+        case .bindFailed(let message): return "数据库参数绑定失败：\(message)"
+        case .backupFailed(let message): return "数据库备份失败：\(message)"
         }
     }
 }
@@ -23,16 +23,33 @@ final class SQLiteDatabase {
     private var db: OpaquePointer?
     private let lock = NSRecursiveLock()
 
-    init(path: String) throws {
-        if sqlite3_open(path, &db) != SQLITE_OK {
+    init(path: String, readOnly: Bool = false) throws {
+        let openResult: Int32
+        if readOnly {
+            let readOnlyURI = URL(fileURLWithPath: path).absoluteString + "?immutable=1"
+            openResult = sqlite3_open_v2(
+                readOnlyURI,
+                &db,
+                SQLITE_OPEN_READONLY | SQLITE_OPEN_FULLMUTEX | SQLITE_OPEN_URI,
+                nil
+            )
+        } else {
+            openResult = sqlite3_open(path, &db)
+        }
+
+        if openResult != SQLITE_OK {
             let message = SQLiteDatabase.message(from: db)
+            sqlite3_close(db)
+            db = nil
             throw SQLiteDatabaseError.openFailed(message)
         }
 
-        try execute("PRAGMA foreign_keys = ON")
-        try execute("PRAGMA journal_mode = WAL")
-        try execute("PRAGMA synchronous = NORMAL")
-        try execute("PRAGMA busy_timeout = 5000")
+        if !readOnly {
+            try execute("PRAGMA foreign_keys = ON")
+            try execute("PRAGMA journal_mode = WAL")
+            try execute("PRAGMA synchronous = NORMAL")
+            try execute("PRAGMA busy_timeout = 5000")
+        }
     }
 
     deinit {
@@ -95,6 +112,10 @@ final class SQLiteDatabase {
     func performMaintenance() throws {
         try execute("PRAGMA optimize")
         try execute("PRAGMA wal_checkpoint(TRUNCATE)")
+    }
+
+    func quickCheck() throws -> Bool {
+        try query("PRAGMA quick_check").first?["quick_check"]?.stringValue == "ok"
     }
 
     func inTransaction(_ body: () throws -> Void) throws {

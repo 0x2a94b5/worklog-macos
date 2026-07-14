@@ -28,6 +28,7 @@ struct SidebarView: View {
                 }
                 .padding(12)
             }
+            .systemScrollerBehavior()
 
             Divider()
 

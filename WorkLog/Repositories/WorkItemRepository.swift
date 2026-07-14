@@ -137,6 +137,18 @@ final class WorkItemRepository {
         """, parameters: parameters(for: item))
     }
 
+    func insertChild(_ child: WorkItem) throws {
+        guard let parentId = child.parentId else {
+            try insert(child)
+            return
+        }
+
+        try db.inTransaction {
+            try insert(child)
+            try synchronizeParentCompletion(parentId: parentId)
+        }
+    }
+
     func save(_ item: WorkItem) throws {
         var newItem = item
         newItem.updatedAt = DateUtils.nowTimestamp()
@@ -165,13 +177,52 @@ final class WorkItemRepository {
 
     func permanentlyDelete(_ item: WorkItem) throws {
         let rootId = item.id
-        try db.execute("DELETE FROM work_items WHERE id = ? OR parent_id = ?", parameters: [.text(rootId), .text(rootId)])
+        try db.inTransaction {
+            try db.execute("DELETE FROM work_items WHERE id = ? OR parent_id = ?", parameters: [.text(rootId), .text(rootId)])
+            if let parentId = item.parentId {
+                try synchronizeParentCompletion(parentId: parentId)
+            }
+        }
     }
 
     func insertMany(_ items: [WorkItem]) throws {
         try db.inTransaction {
             for item in items {
                 try insert(item)
+            }
+            for parentId in Set(items.compactMap(\.parentId)) {
+                try synchronizeParentCompletion(parentId: parentId)
+            }
+        }
+    }
+
+    func setCompletion(_ item: WorkItem, completed: Bool) throws {
+        let status: WorkItemStatus = completed ? .done : .todo
+        let timestamp = DateUtils.nowTimestamp()
+
+        try db.inTransaction {
+            try updateCompletion(id: item.id, status: status, timestamp: timestamp)
+
+            if item.parentId == nil {
+                for child in try fetchChildren(parentId: item.id) {
+                    try updateCompletion(id: child.id, status: status, timestamp: timestamp)
+                }
+            } else if let parentId = item.parentId {
+                try synchronizeParentCompletion(parentId: parentId, timestamp: timestamp)
+            }
+        }
+    }
+
+    func synchronizeParentStatuses() throws {
+        let rows = try db.query("""
+            SELECT DISTINCT parent_id
+            FROM work_items
+            WHERE parent_id IS NOT NULL AND deleted_at IS NULL
+        """)
+        let parentIds = rows.compactMap { $0["parent_id"]?.stringValue }
+        try db.inTransaction {
+            for parentId in parentIds {
+                try synchronizeParentCompletion(parentId: parentId)
             }
         }
     }
@@ -181,6 +232,28 @@ final class WorkItemRepository {
             return [item] + (try fetchChildren(parentId: item.id))
         }
         return [item]
+    }
+
+    private func synchronizeParentCompletion(parentId: String, timestamp: Int64 = DateUtils.nowTimestamp()) throws {
+        let children = try fetchChildren(parentId: parentId)
+        guard !children.isEmpty, let parent = try fetch(id: parentId) else { return }
+
+        let status: WorkItemStatus = children.allSatisfy(\.isDone) ? .done : .todo
+        guard parent.status != status else { return }
+        try updateCompletion(id: parentId, status: status, timestamp: timestamp)
+    }
+
+    private func updateCompletion(id: String, status: WorkItemStatus, timestamp: Int64) throws {
+        try db.execute("""
+            UPDATE work_items
+            SET status = ?, completed_at = ?, updated_at = ?
+            WHERE id = ? AND deleted_at IS NULL
+        """, parameters: [
+            .text(status.rawValue),
+            status == .done ? .integer(timestamp) : .null,
+            .integer(timestamp),
+            .text(id)
+        ])
     }
 
     private func fetchWhere(_ condition: String, _ parameters: [SQLiteValue], includeDeleted: Bool = false) throws -> [WorkItem] {

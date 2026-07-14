@@ -20,9 +20,13 @@ final class AppViewModel: ObservableObject {
     @Published var showDeleteConfirmation: Bool = false
     @Published var errorMessage: String?
     @Published var statusMessage: String?
+    @Published var databaseRecoveryFailure: DatabaseStartupFailure?
+    @Published var databaseBackups: [DatabaseBackupInfo] = []
+    @Published var isScanningDatabaseBackups: Bool = false
+    @Published var isRestoringDatabase: Bool = false
 
-    private let monthRepository = WorkMonthRepository()
-    private let itemRepository = WorkItemRepository()
+    private var monthRepository: WorkMonthRepository
+    private var itemRepository: WorkItemRepository
     private var searchWorkItem: DispatchWorkItem?
     private let searchQueue = DispatchQueue(label: "app.worklog.macos.search", qos: .userInitiated)
     private var knownCurrentMonth: String
@@ -32,15 +36,15 @@ final class AppViewModel: ObservableObject {
     }
 
     var currentDoneCount: Int {
-        items.filter { $0.status == .done }.count
+        primaryItems.filter(\.isDone).count
     }
 
     var currentTotalCount: Int {
-        items.count
+        primaryItems.count
     }
 
     var currentProgressText: String {
-        "完成 \(currentDoneCount) / \(currentTotalCount)"
+        "主任务 \(currentDoneCount) / \(currentTotalCount)"
     }
 
     var currentProgress: Double {
@@ -52,17 +56,90 @@ final class AppViewModel: ObservableObject {
         !searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
+    var requiresDatabaseRecovery: Bool {
+        databaseRecoveryFailure != nil
+    }
+
+    private var primaryItems: [WorkItem] {
+        items.filter { $0.parentId == nil }
+    }
+
     private init() {
+        let databaseManager = DatabaseManager.shared
         let month = DateUtils.currentMonth()
         knownCurrentMonth = month
         selectedMonth = month
         selectedScope = .month(month)
-        bootstrap()
+        monthRepository = WorkMonthRepository(db: databaseManager.database)
+        itemRepository = WorkItemRepository(db: databaseManager.database)
+        databaseRecoveryFailure = databaseManager.startupFailure
+
+        if requiresDatabaseRecovery {
+            refreshDatabaseBackups()
+        } else {
+            bootstrap()
+        }
+    }
+
+    func refreshDatabaseBackups() {
+        guard requiresDatabaseRecovery, !isScanningDatabaseBackups else { return }
+        isScanningDatabaseBackups = true
+        DispatchQueue.global(qos: .utility).async { [weak self] in
+            do {
+                let backups = try DatabaseManager.shared.availableBackups().filter { backup in
+                    do {
+                        try DatabaseManager.shared.validateBackup(at: backup.url)
+                        return true
+                    } catch {
+                        return false
+                    }
+                }
+                DispatchQueue.main.async {
+                    self?.databaseBackups = backups
+                    self?.isScanningDatabaseBackups = false
+                }
+            } catch {
+                DispatchQueue.main.async {
+                    self?.isScanningDatabaseBackups = false
+                    self?.errorMessage = error.localizedDescription
+                }
+            }
+        }
+    }
+
+    func restoreDatabase(from backup: DatabaseBackupInfo) {
+        guard requiresDatabaseRecovery, !isRestoringDatabase else { return }
+        isRestoringDatabase = true
+        DispatchQueue.global(qos: .utility).async { [weak self] in
+            do {
+                let preservedURL = try DatabaseManager.shared.restoreDatabase(from: backup.url)
+                DispatchQueue.main.async {
+                    guard let self else { return }
+                    self.monthRepository = WorkMonthRepository(db: DatabaseManager.shared.database)
+                    self.itemRepository = WorkItemRepository(db: DatabaseManager.shared.database)
+                    self.databaseRecoveryFailure = nil
+                    self.databaseBackups = []
+                    self.isRestoringDatabase = false
+                    self.bootstrap()
+                    if let preservedURL {
+                        self.statusMessage = "数据库已恢复，故障文件保存在 \(preservedURL.lastPathComponent)"
+                    } else {
+                        self.statusMessage = "数据库已恢复"
+                    }
+                }
+            } catch {
+                DispatchQueue.main.async {
+                    self?.isRestoringDatabase = false
+                    self?.errorMessage = error.localizedDescription
+                }
+            }
+        }
     }
 
     func bootstrap() {
         do {
             try monthRepository.ensureMonth(selectedMonth)
+            try itemRepository.synchronizeParentStatuses()
             reloadAll()
         } catch {
             errorMessage = error.localizedDescription
@@ -271,7 +348,7 @@ final class AppViewModel: ObservableObject {
                 sortOrder: sortOrder,
                 rawText: "   - [ ] \(trimmed)"
             )
-            try itemRepository.insert(child)
+            try itemRepository.insertChild(child)
             selectedItemId = child.id
             reloadAll()
             return child
@@ -293,15 +370,13 @@ final class AppViewModel: ObservableObject {
     }
 
     func toggleDone(_ item: WorkItem, keepSelectionId: String?) {
-        var newItem = item
-        if item.status == .done {
-            newItem.status = .todo
-            newItem.completedAt = nil
-        } else {
-            newItem.status = .done
-            newItem.completedAt = DateUtils.nowTimestamp()
+        do {
+            try itemRepository.setCompletion(item, completed: !item.isDone)
+            selectedItemId = keepSelectionId ?? item.id
+            reloadAll()
+        } catch {
+            errorMessage = error.localizedDescription
         }
-        saveItem(newItem, keepSelectionId: keepSelectionId)
     }
 
     func toggleDone(itemId: String) {
@@ -392,45 +467,43 @@ final class AppViewModel: ObservableObject {
         }
     }
 
-    func generateMonthlySummary() -> String {
-        let monthItems = fetchSelectedMonthItemsForDisplay()
-        return generateMonthlySummary(items: monthItems)
+    func generateMonthlySummary() -> String? {
+        do {
+            return generateMonthlySummary(items: try fetchSelectedMonthItemsForDisplay())
+        } catch {
+            errorMessage = error.localizedDescription
+            return nil
+        }
     }
 
     func generateMonthlySummary(items summaryItems: [WorkItem]) -> String {
-        let done = summaryItems.filter { $0.status == .done }.prefix(8).map { "- \($0.title)" }.joined(separator: "\n")
-        let todo = summaryItems.filter { $0.status != .done }.prefix(8).map { "- \($0.title)" }.joined(separator: "\n")
-        let moduleText = Array(Set(summaryItems.map(\.module))).sorted().joined(separator: "、")
-
-        return """
-        \(selectedMonth) 工作复盘
-
-        完成率：\(summaryItems.filter { $0.status == .done }.count) / \(summaryItems.count)
-
-        已完成：
-        \(done.isEmpty ? "- 暂无" : done)
-
-        未完成：
-        \(todo.isEmpty ? "- 暂无" : todo)
-
-        涉及分类：\(moduleText.isEmpty ? "未分类" : moduleText)
-        """
+        MonthlySummaryFormatter.report(month: selectedMonth, items: summaryItems)
     }
 
-    func copyMonthlySummary() {
-        let summary = generateMonthlySummary(items: fetchSelectedMonthItemsForDisplay())
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(summary, forType: .string)
-        statusMessage = "已复制月度复盘到剪贴板"
-    }
-
-    func fetchSelectedMonthItemsForDisplay() -> [WorkItem] {
+    @discardableResult
+    func copyMonthlySummary() -> Bool {
         do {
-            return try itemRepository.fetch(month: selectedMonth)
+            return copyMonthlySummary(items: try fetchSelectedMonthItemsForDisplay())
         } catch {
             errorMessage = error.localizedDescription
-            return items
+            return false
         }
+    }
+
+    @discardableResult
+    func copyMonthlySummary(items summaryItems: [WorkItem]) -> Bool {
+        let summary = generateMonthlySummary(items: summaryItems)
+        NSPasteboard.general.clearContents()
+        guard NSPasteboard.general.setString(summary, forType: .string) else {
+            errorMessage = "无法写入系统剪贴板，请重试。"
+            return false
+        }
+        statusMessage = "已复制月度复盘到剪贴板"
+        return true
+    }
+
+    func fetchSelectedMonthItemsForDisplay() throws -> [WorkItem] {
+        try itemRepository.fetch(month: selectedMonth)
     }
 
     func openDataFolder() {

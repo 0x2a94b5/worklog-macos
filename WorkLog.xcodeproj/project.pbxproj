@@ -19,13 +19,16 @@
 		804C0E89387010DF8B6FB7B9 /* WorkItemRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 601E90EDC943DF93C22D3463 /* WorkItemRepository.swift */; };
 		8BC9E778E8C5CD0681C07C9C /* MarkdownParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 149C90DD66DAFEBE0C411529 /* MarkdownParser.swift */; };
 		DCBD66D62799890677BC4F2D /* ModuleDefaults.swift in Sources */ = {isa = PBXBuildFile; fileRef = A81D78E7489244BAABA9C962 /* ModuleDefaults.swift */; };
+		F06E87CF5CD84A85B33E7201 /* MonthlySummaryFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3F78EE1EB5B41C6A2A4E897 /* MonthlySummaryFormatter.swift */; };
 		A6EAD8261BD9718DDF715296 /* AppViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 95FE6ED86242974250F53A61 /* AppViewModel.swift */; };
 		5E57542962A8264819FFAC12 /* MainView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5611C978CAC7FF9C47ADBA9 /* MainView.swift */; };
 		C6497C2F9C91D3F15E94A418 /* SidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7DBEB6CBA5F61A8609BF3253 /* SidebarView.swift */; };
 		42E265BFB764C35E19B88CA2 /* WorkListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6AD4D40E0CDD9D475D10839A /* WorkListView.swift */; };
+		A17D8B336E51C44F877A914B /* SystemScrollerConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54F1AA890C65B830DC9BAA32 /* SystemScrollerConfiguration.swift */; };
 		05E3E95B8BF3BE0B68F5F97E /* WorkItemRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFEC8133A91CE474520E669D /* WorkItemRowView.swift */; };
 		308FAB03874E62E385D504C1 /* MarkdownImportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99009010C56C20A9013D3A63 /* MarkdownImportView.swift */; };
 		A25D2A4B89F0540E9D5B3448 /* MonthlyReviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D8B7C5E294D41A490E7509A /* MonthlyReviewView.swift */; };
+		C8F8B02D4C7D4A8F832A9101 /* DatabaseRecoveryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8F8B02D4C7D4A8F832A9102 /* DatabaseRecoveryView.swift */; };
 		31ECA6A8AF4A4C28A12F51A7 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 41F0CF0DF0A9430D814E27B7 /* Assets.xcassets */; };
 		9EF14D88C99D05338B1CC6CF /* DateUtils.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10ABA26C753A3D21CA109E48 /* DateUtils.swift */; };
 		7C770B45E3DB291B564B5453 /* libsqlite3.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = 7B0E2F3B23839783F3311ADA /* libsqlite3.tbd */; };
@@ -48,13 +51,16 @@
 		601E90EDC943DF93C22D3463 /* WorkItemRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkLog/Repositories/WorkItemRepository.swift; sourceTree = "<group>"; };
 		149C90DD66DAFEBE0C411529 /* MarkdownParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkLog/Services/MarkdownParser.swift; sourceTree = "<group>"; };
 		A81D78E7489244BAABA9C962 /* ModuleDefaults.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkLog/Services/ModuleDefaults.swift; sourceTree = "<group>"; };
+		B3F78EE1EB5B41C6A2A4E897 /* MonthlySummaryFormatter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkLog/Services/MonthlySummaryFormatter.swift; sourceTree = "<group>"; };
 		95FE6ED86242974250F53A61 /* AppViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkLog/ViewModels/AppViewModel.swift; sourceTree = "<group>"; };
 		E5611C978CAC7FF9C47ADBA9 /* MainView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkLog/Views/MainView.swift; sourceTree = "<group>"; };
 		7DBEB6CBA5F61A8609BF3253 /* SidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkLog/Views/SidebarView.swift; sourceTree = "<group>"; };
 		6AD4D40E0CDD9D475D10839A /* WorkListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkLog/Views/WorkListView.swift; sourceTree = "<group>"; };
+		54F1AA890C65B830DC9BAA32 /* SystemScrollerConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkLog/Views/SystemScrollerConfiguration.swift; sourceTree = "<group>"; };
 		BFEC8133A91CE474520E669D /* WorkItemRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkLog/Views/WorkItemRowView.swift; sourceTree = "<group>"; };
 		99009010C56C20A9013D3A63 /* MarkdownImportView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkLog/Views/MarkdownImportView.swift; sourceTree = "<group>"; };
 		7D8B7C5E294D41A490E7509A /* MonthlyReviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkLog/Views/MonthlyReviewView.swift; sourceTree = "<group>"; };
+		C8F8B02D4C7D4A8F832A9102 /* DatabaseRecoveryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkLog/Views/DatabaseRecoveryView.swift; sourceTree = "<group>"; };
 		10ABA26C753A3D21CA109E48 /* DateUtils.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkLog/Utilities/DateUtils.swift; sourceTree = "<group>"; };
 		41F0CF0DF0A9430D814E27B7 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = WorkLog/Assets.xcassets; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -69,9 +75,9 @@
 		A1C86A29E589D48EC70B6A32 /* Models */ = {isa = PBXGroup; children = (C2F8BE019F056943D97ECFE6 /* WorkItem.swift */, A78F2F346B858A2A5E939F1E /* WorkMonth.swift */, 43B74D04440DEA1FBB2A137E /* SidebarScope.swift */, ); name = Models; sourceTree = "<group>"; };
 		791D31C38A869B0F335DAF24 /* Database */ = {isa = PBXGroup; children = (C98C7EE4C228419895B3C039 /* SQLiteValue.swift */, F176A79E4784661206D5A451 /* SQLiteDatabase.swift */, 1630A8F964C079236FCA9EA1 /* DatabaseManager.swift */, 14F61E27307B3FE7DEF6FB80 /* DatabaseMigrator.swift */, ); name = Database; sourceTree = "<group>"; };
 		6154F1F25656E6024DD07D71 /* Repositories */ = {isa = PBXGroup; children = (DA3CA4EA9CB4CB24FBBF70B7 /* WorkMonthRepository.swift */, 601E90EDC943DF93C22D3463 /* WorkItemRepository.swift */, ); name = Repositories; sourceTree = "<group>"; };
-		609874F33224C0C09F1FEE42 /* Services */ = {isa = PBXGroup; children = (149C90DD66DAFEBE0C411529 /* MarkdownParser.swift */, A81D78E7489244BAABA9C962 /* ModuleDefaults.swift */, ); name = Services; sourceTree = "<group>"; };
+		609874F33224C0C09F1FEE42 /* Services */ = {isa = PBXGroup; children = (149C90DD66DAFEBE0C411529 /* MarkdownParser.swift */, B3F78EE1EB5B41C6A2A4E897 /* MonthlySummaryFormatter.swift */, A81D78E7489244BAABA9C962 /* ModuleDefaults.swift */, ); name = Services; sourceTree = "<group>"; };
 		8C82CBDAB62AC804C92AACD0 /* ViewModels */ = {isa = PBXGroup; children = (95FE6ED86242974250F53A61 /* AppViewModel.swift */, ); name = ViewModels; sourceTree = "<group>"; };
-		38DF21AEF4612506D6BE5CBE /* Views */ = {isa = PBXGroup; children = (E5611C978CAC7FF9C47ADBA9 /* MainView.swift */, 7DBEB6CBA5F61A8609BF3253 /* SidebarView.swift */, 6AD4D40E0CDD9D475D10839A /* WorkListView.swift */, BFEC8133A91CE474520E669D /* WorkItemRowView.swift */, 99009010C56C20A9013D3A63 /* MarkdownImportView.swift */, 7D8B7C5E294D41A490E7509A /* MonthlyReviewView.swift */, ); name = Views; sourceTree = "<group>"; };
+		38DF21AEF4612506D6BE5CBE /* Views */ = {isa = PBXGroup; children = (E5611C978CAC7FF9C47ADBA9 /* MainView.swift */, 7DBEB6CBA5F61A8609BF3253 /* SidebarView.swift */, 6AD4D40E0CDD9D475D10839A /* WorkListView.swift */, 54F1AA890C65B830DC9BAA32 /* SystemScrollerConfiguration.swift */, BFEC8133A91CE474520E669D /* WorkItemRowView.swift */, 99009010C56C20A9013D3A63 /* MarkdownImportView.swift */, 7D8B7C5E294D41A490E7509A /* MonthlyReviewView.swift */, C8F8B02D4C7D4A8F832A9102 /* DatabaseRecoveryView.swift */, ); name = Views; sourceTree = "<group>"; };
 		9021D2FAC036FC5D483E9E11 /* Utilities */ = {isa = PBXGroup; children = (10ABA26C753A3D21CA109E48 /* DateUtils.swift */, ); name = Utilities; sourceTree = "<group>"; };
 		887A6F90336FF23D95C3914B /* Resources */ = {isa = PBXGroup; children = (41F0CF0DF0A9430D814E27B7 /* Assets.xcassets */, ); name = Resources; sourceTree = "<group>"; };
 		0B881B063C6C7200EEF40A0A /* Frameworks */ = {isa = PBXGroup; children = (7B0E2F3B23839783F3311ADA /* libsqlite3.tbd */, ); name = Frameworks; sourceTree = "<group>"; };
@@ -91,7 +97,7 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
-		A7BB88F141516E17F21602B2 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (59402CAF5CEC586F66A1348C /* WorkLogApp.swift in Sources */, 6529E9F8951C15FBADE64FA3 /* AppDelegate.swift in Sources */, 38F421C9D39211014D45D59E /* WorkItem.swift in Sources */, FD5BACFFC014A140901AA882 /* WorkMonth.swift in Sources */, 6500B3CD2B96E600646876BE /* SidebarScope.swift in Sources */, 181C82F7174AF7875027EFB5 /* SQLiteValue.swift in Sources */, E5407C293481D5D0455A28FE /* SQLiteDatabase.swift in Sources */, 87CE7D1F497B12707D40E2FE /* DatabaseManager.swift in Sources */, 8630F5ADC31BB4A2BAE75B53 /* DatabaseMigrator.swift in Sources */, C041377E73D41E62C5DB8E4C /* WorkMonthRepository.swift in Sources */, 804C0E89387010DF8B6FB7B9 /* WorkItemRepository.swift in Sources */, 8BC9E778E8C5CD0681C07C9C /* MarkdownParser.swift in Sources */, DCBD66D62799890677BC4F2D /* ModuleDefaults.swift in Sources */, A6EAD8261BD9718DDF715296 /* AppViewModel.swift in Sources */, 5E57542962A8264819FFAC12 /* MainView.swift in Sources */, C6497C2F9C91D3F15E94A418 /* SidebarView.swift in Sources */, 42E265BFB764C35E19B88CA2 /* WorkListView.swift in Sources */, 05E3E95B8BF3BE0B68F5F97E /* WorkItemRowView.swift in Sources */, 308FAB03874E62E385D504C1 /* MarkdownImportView.swift in Sources */, A25D2A4B89F0540E9D5B3448 /* MonthlyReviewView.swift in Sources */, 9EF14D88C99D05338B1CC6CF /* DateUtils.swift in Sources */, ); runOnlyForDeploymentPostprocessing = 0; };
+		A7BB88F141516E17F21602B2 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (59402CAF5CEC586F66A1348C /* WorkLogApp.swift in Sources */, 6529E9F8951C15FBADE64FA3 /* AppDelegate.swift in Sources */, 38F421C9D39211014D45D59E /* WorkItem.swift in Sources */, FD5BACFFC014A140901AA882 /* WorkMonth.swift in Sources */, 6500B3CD2B96E600646876BE /* SidebarScope.swift in Sources */, 181C82F7174AF7875027EFB5 /* SQLiteValue.swift in Sources */, E5407C293481D5D0455A28FE /* SQLiteDatabase.swift in Sources */, 87CE7D1F497B12707D40E2FE /* DatabaseManager.swift in Sources */, 8630F5ADC31BB4A2BAE75B53 /* DatabaseMigrator.swift in Sources */, C041377E73D41E62C5DB8E4C /* WorkMonthRepository.swift in Sources */, 804C0E89387010DF8B6FB7B9 /* WorkItemRepository.swift in Sources */, 8BC9E778E8C5CD0681C07C9C /* MarkdownParser.swift in Sources */, F06E87CF5CD84A85B33E7201 /* MonthlySummaryFormatter.swift in Sources */, DCBD66D62799890677BC4F2D /* ModuleDefaults.swift in Sources */, A6EAD8261BD9718DDF715296 /* AppViewModel.swift in Sources */, 5E57542962A8264819FFAC12 /* MainView.swift in Sources */, C6497C2F9C91D3F15E94A418 /* SidebarView.swift in Sources */, 42E265BFB764C35E19B88CA2 /* WorkListView.swift in Sources */, A17D8B336E51C44F877A914B /* SystemScrollerConfiguration.swift in Sources */, 05E3E95B8BF3BE0B68F5F97E /* WorkItemRowView.swift in Sources */, 308FAB03874E62E385D504C1 /* MarkdownImportView.swift in Sources */, A25D2A4B89F0540E9D5B3448 /* MonthlyReviewView.swift in Sources */, C8F8B02D4C7D4A8F832A9101 /* DatabaseRecoveryView.swift in Sources */, 9EF14D88C99D05338B1CC6CF /* DateUtils.swift in Sources */, ); runOnlyForDeploymentPostprocessing = 0; };
 /* End PBXSourcesBuildPhase section */
 
 /* Begin XCBuildConfiguration section */
@@ -196,7 +202,7 @@
 		FEAF9D4968582A2CF7DBD819 /* Debug */ = {isa = XCBuildConfiguration; buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 25;
 				DEVELOPMENT_ASSET_PATHS = "";
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -207,7 +213,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 12.0;
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.0.2;
 				PRODUCT_BUNDLE_IDENTIFIER = app.worklog.macos;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_VERSION = 5.0;
@@ -215,7 +221,7 @@
 		D3C0029486A259D4F81362AA /* Release */ = {isa = XCBuildConfiguration; buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 25;
 				DEVELOPMENT_ASSET_PATHS = "";
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -226,7 +232,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 12.0;
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.0.2;
 				PRODUCT_BUNDLE_IDENTIFIER = app.worklog.macos;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_VERSION = 5.0;

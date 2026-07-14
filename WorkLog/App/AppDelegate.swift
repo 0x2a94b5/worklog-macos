@@ -20,11 +20,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             name: NSWorkspace.didWakeNotification,
             object: nil
         )
+
+        if ProcessInfo.processInfo.environment["WORKLOG_UI_TEST_MODE"] == "1" {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                NSApp.setActivationPolicy(.regular)
+                NSApp.activate(ignoringOtherApps: true)
+                NSApp.windows.first(where: { $0.canBecomeKey })?.makeKeyAndOrderFront(nil)
+            }
+        }
     }
 
     func applicationDidBecomeActive(_ notification: Notification) {
         NSApp.windows.forEach { $0.isReleasedWhenClosed = false }
         AppViewModel.shared.handleCalendarChange()
+        DatabaseManager.shared.scheduleDailyBackupIfNeeded()
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -46,9 +55,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func workspaceDidWake() {
         AppViewModel.shared.handleCalendarChange()
+        DatabaseManager.shared.scheduleDailyBackupIfNeeded()
     }
 
     @objc private func calendarDayChanged() {
         AppViewModel.shared.handleCalendarChange()
+        DatabaseManager.shared.scheduleDailyBackupIfNeeded()
     }
 }
