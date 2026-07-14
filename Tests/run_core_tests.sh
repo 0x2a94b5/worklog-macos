@@ -12,7 +12,7 @@ xcrun swiftc \
   "$ROOT/WorkLog/Database/SQLiteDatabase.swift" \
   "$ROOT/WorkLog/Database/DatabaseMigrator.swift" \
   "$ROOT/WorkLog/Services/MarkdownParser.swift" \
-  "$ROOT/WorkLog/Services/ModuleInferer.swift" \
+  "$ROOT/WorkLog/Services/ModuleDefaults.swift" \
   "$ROOT/WorkLog/Utilities/DateUtils.swift" \
   -lsqlite3 \
   -o "$BUILD_DIR/CoreRegressionTests"

@@ -1,6 +1,12 @@
+import AppKit
 import SwiftUI
 
 struct WorkItemRowView: View {
+    private enum EditingField: Hashable {
+        case title
+        case module
+    }
+
     @EnvironmentObject private var app: AppViewModel
     let item: WorkItem
     var childCount: Int = 0
@@ -14,28 +20,30 @@ struct WorkItemRowView: View {
     var onBeginEditing: (() -> Void)?
     var onCommitEditing: (() -> Void)?
     var onCancelEditing: (() -> Void)?
-    @FocusState private var isTitleFocused: Bool
+    @FocusState private var editingField: EditingField?
 
     private var isSelected: Bool {
         app.selectedItemId == item.id
     }
 
     var body: some View {
-        HStack(spacing: 10) {
-            Spacer()
-                .frame(width: CGFloat(item.level * 24))
+        HStack(alignment: .top, spacing: 8) {
+            if item.level > 0 {
+                Color.clear
+                    .frame(width: CGFloat(item.level * 18), height: 1)
+            }
 
             if let onToggleCollapse {
                 Button(action: onToggleCollapse) {
                     Image(systemName: isCollapsed ? "chevron.right" : "chevron.down")
                         .font(.system(size: 11, weight: .semibold))
                         .foregroundColor(.secondary)
-                        .frame(width: 28, height: 28)
+                        .frame(width: 20, height: 24)
                 }
                 .buttonStyle(BorderlessButtonStyle())
             } else {
-                Spacer()
-                    .frame(width: 28)
+                Color.clear
+                    .frame(width: 20, height: 24)
             }
 
             Button {
@@ -44,7 +52,7 @@ struct WorkItemRowView: View {
                 Image(systemName: item.status.symbolName)
                     .foregroundColor(isSelected ? .primary : item.status == .done ? .accentColor : .secondary)
                     .font(.system(size: 17))
-                    .frame(width: 28, height: 28)
+                    .frame(width: 24, height: 24)
             }
             .buttonStyle(BorderlessButtonStyle())
             .help(item.status == .done ? "标记为未完成" : "标记为已完成")
@@ -60,17 +68,22 @@ struct WorkItemRowView: View {
 
                     if isEditing {
                         TextField("任务标题", text: $editingTitle)
-                            .textFieldStyle(PlainTextFieldStyle())
-                            .font(.system(size: item.level == 0 ? 14 : 13, weight: item.level == 0 ? .medium : .regular))
-                            .focused($isTitleFocused)
+                            .textFieldStyle(RoundedBorderTextFieldStyle())
+                            .font(.system(size: item.level == 0 ? 14 : 13, weight: .regular))
+                            .frame(minWidth: 180, maxWidth: .infinity)
+                            .layoutPriority(2)
+                            .focused($editingField, equals: .title)
+                            .submitLabel(.done)
                             .onSubmit { onCommitEditing?() }
                             .onExitCommand { onCancelEditing?() }
                     } else {
                         Text(item.title)
-                            .font(.system(size: item.level == 0 ? 14 : 13, weight: item.level == 0 ? .medium : .regular))
+                            .font(.system(size: item.level == 0 ? 14 : 13, weight: .regular))
                             .strikethrough(item.status == .done)
                             .foregroundColor(item.status == .done ? .secondary : .primary)
-                            .lineLimit(1)
+                            .lineLimit(2)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .help(item.title)
                     }
 
                     if childCount > 0 {
@@ -84,26 +97,39 @@ struct WorkItemRowView: View {
                     }
                 }
 
-                Text(updateMetadataText)
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                    .help("最后更新：\(DateUtils.timestampToDateText(item.updatedAt))")
+                HStack(spacing: 8) {
+                    Text(updateMetadataText)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .help("最后更新：\(DateUtils.timestampToDateText(item.updatedAt))")
+
+                    if isEditing {
+                        Spacer(minLength: 8)
+                        TextField("分类", text: $editingModule)
+                            .textFieldStyle(RoundedBorderTextFieldStyle())
+                            .frame(width: 140)
+                            .focused($editingField, equals: .module)
+                            .submitLabel(.done)
+                            .onSubmit { onCommitEditing?() }
+                            .onExitCommand { onCancelEditing?() }
+                    }
+                }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .layoutPriority(1)
 
-            Spacer()
-
-            if isEditing {
-                TextField("分类", text: $editingModule)
-                    .textFieldStyle(RoundedBorderTextFieldStyle())
-                    .frame(width: 110)
-            } else if !item.module.isEmpty {
+            if !isEditing && !item.module.isEmpty {
                 Text(item.module)
                     .font(.caption)
-                    .padding(.horizontal, 8)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .frame(width: moduleTagWidth, alignment: .center)
                     .padding(.vertical, 3)
-                    .background(isSelected ? Color.primary.opacity(0.10) : Color.secondary.opacity(0.12))
+                    .background(isSelected ? Color(nsColor: .controlBackgroundColor).opacity(0.85) : Color.secondary.opacity(0.12))
                     .foregroundColor(isSelected ? .primary : .secondary)
                     .cornerRadius(6)
+                    .layoutPriority(2)
+                    .help(item.module)
             }
 
             if let onBeginDrag {
@@ -126,7 +152,10 @@ struct WorkItemRowView: View {
         }
         .simultaneousGesture(
             TapGesture(count: 1)
-                .onEnded { onSelect?() }
+                .onEnded {
+                    guard !isEditing else { return }
+                    onSelect?()
+                }
         )
         .simultaneousGesture(
             TapGesture(count: 2)
@@ -136,8 +165,21 @@ struct WorkItemRowView: View {
                 }
         )
         .onChange(of: isEditing) { editing in
-            guard editing else { return }
-            DispatchQueue.main.async { isTitleFocused = true }
+            guard editing else {
+                editingField = nil
+                return
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                guard isEditing else { return }
+                editingField = .title
+            }
+        }
+        .onChange(of: editingField) { field in
+            guard isEditing, field == nil else { return }
+            DispatchQueue.main.async {
+                guard isEditing, editingField == nil else { return }
+                onCommitEditing?()
+            }
         }
     }
 
@@ -149,5 +191,11 @@ struct WorkItemRowView: View {
         case .module, .status:
             return "\(item.month) · 更新于 \(updatedAt)"
         }
+    }
+
+    private var moduleTagWidth: CGFloat {
+        let font = NSFont.systemFont(ofSize: NSFont.smallSystemFontSize)
+        let textWidth = (item.module as NSString).size(withAttributes: [.font: font]).width
+        return min(max(ceil(textWidth) + 16, 32), 96)
     }
 }

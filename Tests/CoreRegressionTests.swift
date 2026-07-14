@@ -25,6 +25,9 @@ struct CoreRegressionTests {
         try expect(parsed.items.count == 3, "应解析主任务和子任务")
         try expect(parsed.items[0].status == .done, "[x] 应映射为已完成")
         try expect(parsed.items[2].parentId == parsed.items[1].id, "子任务应关联主任务")
+        try expect(parsed.items.allSatisfy { $0.module == ModuleDefaults.uncategorized }, "Markdown 缺少分类时应使用未分类")
+        let keywordItem = MarkdownParser.parse("[ ]缴费与支付功能").items.first
+        try expect(keywordItem?.module == ModuleDefaults.uncategorized, "标题关键词不应触发隐藏分类推断")
 
         var itemWithPrivateData = parsed.items[0]
         itemWithPrivateData.module = "内部分类"

@@ -12,7 +12,8 @@ struct WorkListView: View {
     @State private var editingTitle = ""
     @State private var editingModule = ""
     @FocusState private var isSearchFocused: Bool
-    @FocusState private var isListFocused: Bool
+    @FocusState private var isQuickAddFocused: Bool
+    @State private var isListKeyboardActive = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -28,7 +29,14 @@ struct WorkListView: View {
             }
         }
         .onChange(of: app.searchFocusRequest) { _ in
+            isListKeyboardActive = false
             isSearchFocused = true
+        }
+        .onChange(of: isSearchFocused) { focused in
+            if focused { isListKeyboardActive = false }
+        }
+        .onChange(of: isQuickAddFocused) { focused in
+            if focused { isListKeyboardActive = false }
         }
         .alert(isPresented: $app.showDeleteConfirmation) {
             Alert(
@@ -42,10 +50,10 @@ struct WorkListView: View {
             )
         }
         .onChange(of: app.isSearchActive) { active in
-            if active { commitEditing(keepSelectionId: app.selectedItemId) }
+            if active { _ = commitEditing(keepSelectionId: app.selectedItemId) }
         }
         .onDisappear {
-            commitEditing(keepSelectionId: app.selectedItemId)
+            _ = commitEditing(keepSelectionId: app.selectedItemId)
         }
     }
 
@@ -122,8 +130,11 @@ struct WorkListView: View {
 
     private var quickAddBar: some View {
         HStack(spacing: 8) {
-            TextField("添加工作项，支持 [x] 普通任务或 4. 主题任务，按 Enter 保存", text: $quickTitle, onCommit: submitQuickAdd)
+            TextField("添加工作项，按 Enter 保存", text: $quickTitle)
                 .textFieldStyle(RoundedBorderTextFieldStyle())
+                .focused($isQuickAddFocused)
+                .submitLabel(.done)
+                .onSubmit(submitQuickAdd)
 
             Button(action: submitQuickAdd) {
                 Label("添加", systemImage: "plus.circle.fill")
@@ -138,43 +149,48 @@ struct WorkListView: View {
             if visibleItems.isEmpty {
                 emptyState
             } else {
-                ScrollViewReader { proxy in
-                    ScrollView {
-                        LazyVStack(spacing: 0) {
-                            ForEach(visibleItems) { row in
-                                listRow(row)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .padding(.horizontal, 14)
-                                    .background(
-                                        app.selectedItemId == row.item.id
-                                            ? Color.accentColor.opacity(0.16)
-                                            : Color.clear
-                                    )
-                                    .id(row.item.id)
+                GeometryReader { viewport in
+                    ScrollViewReader { proxy in
+                        ScrollView {
+                            ZStack(alignment: .topLeading) {
+                                Color.clear
+                                    .contentShape(Rectangle())
+                                    .onTapGesture(perform: commitEditingFromOutside)
 
-                                Divider()
-                                    .padding(.leading, row.item.level == 0 ? 14 : 52)
+                                LazyVStack(spacing: 0) {
+                                    ForEach(visibleItems) { row in
+                                        listRow(row)
+                                            .frame(maxWidth: .infinity, alignment: .leading)
+                                            .padding(.horizontal, 10)
+                                            .background(
+                                                app.selectedItemId == row.item.id
+                                                    ? Color.accentColor.opacity(0.16)
+                                                    : Color.clear
+                                            )
+                                            .id(row.item.id)
+
+                                        Divider()
+                                            .padding(.leading, row.item.level == 0 ? 10 : 46)
+                                    }
+                                }
                             }
+                            .frame(maxWidth: .infinity, minHeight: viewport.size.height, alignment: .top)
                         }
-                    }
-                    .onChange(of: app.selectedItemId) { itemId in
-                        if editingItemId != nil, editingItemId != itemId {
-                            commitEditing(keepSelectionId: itemId)
+                        .onChange(of: app.selectedItemId) { itemId in
+                            if editingItemId != nil, editingItemId != itemId {
+                                _ = commitEditing(keepSelectionId: itemId)
+                            }
+                            revealAndScroll(to: itemId, proxy: proxy)
                         }
-                        revealAndScroll(to: itemId, proxy: proxy)
                     }
                 }
             }
         }
-        .focusable(!visibleItems.isEmpty)
-        .focused($isListFocused)
-        .onMoveCommand(perform: moveSelection)
-        .onDeleteCommand {
-            app.requestDeleteSelectedItem()
-        }
         .background(
             WorkListKeyboardMonitor(
-                isActive: isListFocused && editingItemId == nil,
+                isActive: isListKeyboardActive && editingItemId == nil,
+                onMoveSelection: moveSelection,
+                onDelete: app.requestDeleteSelectedItem,
                 onToggleDone: toggleSelectedDone,
                 onBeginEditing: beginEditingSelected
             )
@@ -272,7 +288,7 @@ struct WorkListView: View {
             },
             onSelect: { selectRow(id: row.item.id) },
             onBeginEditing: { beginEditing(row.item) },
-            onCommitEditing: { commitEditing() },
+            onCommitEditing: { _ = commitEditing() },
             onCancelEditing: cancelEditing
         )
         .contextMenu {
@@ -314,7 +330,7 @@ struct WorkListView: View {
                 onBeginDrag: nil,
                 onSelect: { selectRow(id: row.item.id) },
                 onBeginEditing: { beginEditing(row.item) },
-                onCommitEditing: { commitEditing() },
+                onCommitEditing: { _ = commitEditing() },
                 onCancelEditing: cancelEditing
             )
             .contextMenu {
@@ -368,8 +384,9 @@ struct WorkListView: View {
     }
 
     private func submitQuickAdd() {
-        app.addQuickItem(title: quickTitle)
+        guard app.addQuickItem(title: quickTitle) else { return }
         quickTitle = ""
+        DispatchQueue.main.async { isQuickAddFocused = true }
     }
 
     private func toggleCollapse(_ itemId: String) {
@@ -382,38 +399,50 @@ struct WorkListView: View {
 
     private func selectRow(id: String?) {
         if let editingItemId, editingItemId != id {
-            commitEditing(keepSelectionId: id)
+            guard commitEditing(keepSelectionId: id) else { return }
         }
+        isSearchFocused = false
+        isQuickAddFocused = false
         app.selectItem(id: id)
-        isListFocused = true
+        isListKeyboardActive = true
+    }
+
+    private func commitEditingFromOutside() {
+        guard editingItemId != nil else { return }
+        _ = commitEditing(keepSelectionId: app.selectedItemId)
     }
 
     private func beginEditing(_ item: WorkItem) {
         if editingItemId != nil && editingItemId != item.id {
-            commitEditing(keepSelectionId: item.id)
+            guard commitEditing(keepSelectionId: item.id) else { return }
         }
         app.selectItem(id: item.id)
         editingTitle = item.title
         editingModule = item.module
         editingItemId = item.id
-        isListFocused = false
+        isListKeyboardActive = false
     }
 
-    private func commitEditing(keepSelectionId: String? = nil) {
-        guard let itemId = editingItemId else { return }
+    @discardableResult
+    private func commitEditing(keepSelectionId: String? = nil) -> Bool {
+        guard let itemId = editingItemId else { return true }
         let title = editingTitle
         let module = editingModule
+        guard app.updateItem(itemId: itemId, title: title, module: module, keepSelectionId: keepSelectionId) else {
+            return false
+        }
         editingItemId = nil
         editingTitle = ""
         editingModule = ""
-        app.updateItem(itemId: itemId, title: title, module: module, keepSelectionId: keepSelectionId)
+        isListKeyboardActive = true
+        return true
     }
 
     private func cancelEditing() {
         editingItemId = nil
         editingTitle = ""
         editingModule = ""
-        isListFocused = true
+        isListKeyboardActive = true
     }
 
     private func createChild(for parent: WorkItem) {
@@ -515,6 +544,8 @@ private struct WorkItemDropDelegate: DropDelegate {
 
 private struct WorkListKeyboardMonitor: NSViewRepresentable {
     let isActive: Bool
+    let onMoveSelection: (MoveCommandDirection) -> Void
+    let onDelete: () -> Void
     let onToggleDone: () -> Void
     let onBeginEditing: () -> Void
 
@@ -523,12 +554,16 @@ private struct WorkListKeyboardMonitor: NSViewRepresentable {
     }
 
     func makeNSView(context: Context) -> NSView {
+        let view = NSView(frame: .zero)
+        context.coordinator.hostView = view
         context.coordinator.installMonitor()
-        return NSView(frame: .zero)
+        return view
     }
 
     func updateNSView(_ nsView: NSView, context: Context) {
         context.coordinator.isActive = isActive
+        context.coordinator.onMoveSelection = onMoveSelection
+        context.coordinator.onDelete = onDelete
         context.coordinator.onToggleDone = onToggleDone
         context.coordinator.onBeginEditing = onBeginEditing
     }
@@ -539,32 +574,59 @@ private struct WorkListKeyboardMonitor: NSViewRepresentable {
 
     final class Coordinator {
         var isActive = false
+        var onMoveSelection: ((MoveCommandDirection) -> Void)?
+        var onDelete: (() -> Void)?
         var onToggleDone: (() -> Void)?
         var onBeginEditing: (() -> Void)?
-        private var monitor: Any?
+        weak var hostView: NSView?
+        private var keyboardMonitor: Any?
 
         func installMonitor() {
-            monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
-                guard let self, self.isActive, !event.isARepeat else { return event }
+            keyboardMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+                guard let self,
+                      self.isActive,
+                      event.window === self.hostView?.window
+                else { return event }
                 if event.window?.firstResponder is NSTextView { return event }
+                let commandModifiers = event.modifierFlags.intersection([.command, .option, .control])
+                guard commandModifiers.isEmpty else { return event }
 
                 switch event.keyCode {
+                case 123:
+                    self.onMoveSelection?(.left)
+                    return nil
+                case 124:
+                    self.onMoveSelection?(.right)
+                    return nil
+                case 125:
+                    self.onMoveSelection?(.down)
+                    return nil
+                case 126:
+                    self.onMoveSelection?(.up)
+                    return nil
+                case 51, 117 where !event.isARepeat:
+                    self.onDelete?()
+                    return nil
                 case 49:
+                    guard !event.isARepeat else { return nil }
                     self.onToggleDone?()
                     return nil
                 case 36, 76:
+                    guard !event.isARepeat else { return nil }
                     self.onBeginEditing?()
                     return nil
                 default:
                     return event
                 }
             }
+
         }
 
         func removeMonitor() {
-            guard let monitor else { return }
-            NSEvent.removeMonitor(monitor)
-            self.monitor = nil
+            if let keyboardMonitor {
+                NSEvent.removeMonitor(keyboardMonitor)
+                self.keyboardMonitor = nil
+            }
         }
 
         deinit {

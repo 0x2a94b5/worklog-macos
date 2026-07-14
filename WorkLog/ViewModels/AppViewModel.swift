@@ -191,17 +191,19 @@ final class AppViewModel: ObservableObject {
     }
 
     func createEmptyItem() {
-        addQuickItem(title: "新工作项")
+        _ = addQuickItem(title: "新工作项")
     }
 
-    func addQuickItem(title: String) {
+    @discardableResult
+    func addQuickItem(title: String) -> Bool {
         let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return }
+        guard !trimmed.isEmpty else { return false }
 
         do {
             try monthRepository.ensureMonth(selectedMonth)
             let parsed = MarkdownParser.parse(trimmed, fallbackMonth: selectedMonth)
             let nextSort = (try? itemRepository.nextSortOrder(month: selectedMonth)) ?? ((items.map(\.sortOrder).max() ?? 0) + 1)
+            let module = defaultModuleForNewItem
 
             let newItems: [WorkItem]
             if parsed.items.isEmpty {
@@ -209,7 +211,7 @@ final class AppViewModel: ObservableObject {
                     month: selectedMonth,
                     title: trimmed,
                     status: .todo,
-                    module: ModuleInferer.infer(from: trimmed),
+                    module: module,
                     sortOrder: nextSort,
                     rawText: trimmed
                 )]
@@ -217,17 +219,24 @@ final class AppViewModel: ObservableObject {
                 newItems = parsed.items.enumerated().map { offset, item in
                     var newItem = item
                     newItem.month = selectedMonth
+                    newItem.module = module
                     newItem.sortOrder = nextSort + offset
                     return newItem
                 }
             }
 
             try itemRepository.insertMany(newItems)
-            selectedScope = .month(selectedMonth)
+            if case .module = selectedScope {
+                // Keep category context so the newly added item remains visible.
+            } else {
+                selectedScope = .month(selectedMonth)
+            }
             reloadAll()
             selectedItemId = newItems.first?.id
+            return true
         } catch {
             errorMessage = error.localizedDescription
+            return false
         }
     }
 
@@ -256,7 +265,7 @@ final class AppViewModel: ObservableObject {
                 month: parent.month,
                 title: trimmed,
                 status: .todo,
-                module: parent.module.isEmpty ? ModuleInferer.infer(from: trimmed) : parent.module,
+                module: parent.module.isEmpty ? ModuleDefaults.uncategorized : parent.module,
                 parentId: parent.id,
                 level: parent.level + 1,
                 sortOrder: sortOrder,
@@ -270,6 +279,13 @@ final class AppViewModel: ObservableObject {
             errorMessage = error.localizedDescription
             return nil
         }
+    }
+
+    private var defaultModuleForNewItem: String {
+        if case .module(let module) = selectedScope {
+            return module
+        }
+        return ModuleDefaults.uncategorized
     }
 
     func toggleDone(_ item: WorkItem) {
@@ -301,18 +317,30 @@ final class AppViewModel: ObservableObject {
         }
     }
 
-    func updateItem(itemId: String, title: String, module: String, keepSelectionId: String? = nil) {
+    @discardableResult
+    func updateItem(itemId: String, title: String, module: String, keepSelectionId: String? = nil) -> Bool {
         let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedTitle.isEmpty else { return }
+        guard !trimmedTitle.isEmpty else {
+            errorMessage = "任务标题不能为空"
+            return false
+        }
 
         do {
-            guard var item = try itemRepository.fetch(id: itemId) else { return }
+            guard var item = try itemRepository.fetch(id: itemId) else { return false }
+            let enteredModule = module.trimmingCharacters(in: .whitespacesAndNewlines)
+            let trimmedModule = enteredModule.isEmpty ? ModuleDefaults.uncategorized : enteredModule
+            guard item.title != trimmedTitle || item.module != trimmedModule else {
+                if let keepSelectionId {
+                    selectedItemId = keepSelectionId
+                }
+                return true
+            }
             item.title = trimmedTitle
-            let trimmedModule = module.trimmingCharacters(in: .whitespacesAndNewlines)
-            item.module = trimmedModule.isEmpty ? ModuleInferer.infer(from: trimmedTitle) : trimmedModule
-            saveItem(item, keepSelectionId: keepSelectionId)
+            item.module = trimmedModule
+            return saveItem(item, keepSelectionId: keepSelectionId)
         } catch {
             errorMessage = error.localizedDescription
+            return false
         }
     }
 
@@ -419,13 +447,16 @@ final class AppViewModel: ObservableObject {
         }
     }
 
-    private func saveItem(_ item: WorkItem, keepSelectionId: String? = nil) {
+    @discardableResult
+    private func saveItem(_ item: WorkItem, keepSelectionId: String? = nil) -> Bool {
         do {
             try itemRepository.save(item)
             selectedItemId = keepSelectionId ?? item.id
             reloadAll()
+            return true
         } catch {
             errorMessage = error.localizedDescription
+            return false
         }
     }
 
