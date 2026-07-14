@@ -161,7 +161,7 @@ struct WorkListView: View {
                                     ForEach(visibleItems) { row in
                                         listRow(row)
                                             .frame(maxWidth: .infinity, alignment: .leading)
-                                            .padding(.horizontal, 10)
+                                            .padding(.horizontal, 8)
                                             .background(
                                                 app.selectedItemId == row.item.id
                                                     ? Color.accentColor.opacity(0.16)
@@ -170,7 +170,7 @@ struct WorkListView: View {
                                             .id(row.item.id)
 
                                         Divider()
-                                            .padding(.leading, row.item.level == 0 ? 10 : 46)
+                                            .padding(.leading, row.item.level == 0 ? 8 : 44)
                                     }
                                 }
                             }

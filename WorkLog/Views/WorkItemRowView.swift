@@ -29,7 +29,7 @@ struct WorkItemRowView: View {
     }
 
     var body: some View {
-        HStack(alignment: .top, spacing: 8) {
+        HStack(alignment: .top, spacing: 6) {
             if item.level > 0 {
                 Color.clear
                     .frame(width: CGFloat(item.level * 18), height: 1)
@@ -40,12 +40,12 @@ struct WorkItemRowView: View {
                     Image(systemName: isCollapsed ? "chevron.right" : "chevron.down")
                         .font(.system(size: 11, weight: .semibold))
                         .foregroundColor(.secondary)
-                        .frame(width: 20, height: 24)
+                        .frame(width: 16, height: 24)
                 }
                 .buttonStyle(BorderlessButtonStyle())
             } else {
                 Color.clear
-                    .frame(width: 20, height: 24)
+                    .frame(width: 16, height: 24)
             }
 
             Button {
