@@ -13,9 +13,9 @@ The app is designed for people who organize work by month and prefer native inte
 ## Features
 
 - Filter tasks by month, category, and incomplete/completed status
-- Create hierarchical tasks, collapse task groups, and reorder siblings with drag and drop
+- Create hierarchical tasks, collapse task groups, adjust levels from the context menu, and reorder siblings with drag and drop
 - Select with a single click and edit titles or categories with a double click
-- Navigate with arrow keys, toggle completion with Space, and edit with Return
+- Navigate with arrow keys, toggle completion with Space, edit with Return, and demote or promote tasks with `Tab / Shift-Tab`
 - Search globally and jump directly to a result
 - Create the current month automatically
 - Append tasks from Markdown without replacing existing data

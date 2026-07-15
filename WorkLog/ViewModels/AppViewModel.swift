@@ -267,6 +267,47 @@ final class AppViewModel: ObservableObject {
         }
     }
 
+    func availableParents(for item: WorkItem) -> [WorkItem] {
+        guard item.parentId == nil else { return [] }
+        return items
+            .filter { $0.month == item.month && $0.parentId == nil && $0.id != item.id }
+            .sorted { $0.sortOrder < $1.sortOrder }
+    }
+
+    func previousPrimaryItem(for item: WorkItem) -> WorkItem? {
+        guard item.parentId == nil else { return nil }
+        let primaryItems = items
+            .filter { $0.month == item.month && $0.parentId == nil }
+            .sorted { $0.sortOrder < $1.sortOrder }
+        guard let index = primaryItems.firstIndex(where: { $0.id == item.id }), index > 0 else { return nil }
+        return primaryItems[index - 1]
+    }
+
+    func canConvertToChild(_ item: WorkItem) -> Bool {
+        item.parentId == nil && !items.contains { $0.parentId == item.id }
+    }
+
+    func convertToChild(_ item: WorkItem, parent: WorkItem, undoManager: UndoManager? = nil) {
+        changeHierarchy(itemId: item.id, parentId: parent.id, undoManager: undoManager)
+    }
+
+    func indentSelectedItem(undoManager: UndoManager? = nil) {
+        guard let item = selectedItem,
+              let parent = previousPrimaryItem(for: item)
+        else { return }
+        convertToChild(item, parent: parent, undoManager: undoManager)
+    }
+
+    func promoteToPrimary(_ item: WorkItem, undoManager: UndoManager? = nil) {
+        guard item.parentId != nil else { return }
+        changeHierarchy(itemId: item.id, parentId: nil, undoManager: undoManager)
+    }
+
+    func promoteSelectedItem(undoManager: UndoManager? = nil) {
+        guard let item = selectedItem else { return }
+        promoteToPrimary(item, undoManager: undoManager)
+    }
+
     func createEmptyItem() {
         _ = addQuickItem(title: "新工作项")
     }
@@ -559,6 +600,44 @@ final class AppViewModel: ObservableObject {
             target.restore(items, undoManager: undoManager)
         }
         undoManager.setActionName("删除任务")
+    }
+
+    private func changeHierarchy(itemId: String, parentId: String?, undoManager: UndoManager?) {
+        do {
+            guard let item = try itemRepository.fetch(id: itemId) else { return }
+            let parent = try parentId.flatMap { try itemRepository.fetch(id: $0) }
+            let state = try itemRepository.reparent(itemId: itemId, to: parentId)
+            selectedItemId = itemId
+            reloadAll()
+            registerHierarchyUndo(state, undoManager: undoManager)
+            if let parent {
+                statusMessage = "“\(item.title)”已转为“\(parent.title)”的子任务"
+            } else {
+                statusMessage = "“\(item.title)”已提升为一级任务"
+            }
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    private func registerHierarchyUndo(_ state: WorkItemHierarchyState, undoManager: UndoManager?) {
+        guard let undoManager else { return }
+        undoManager.registerUndo(withTarget: self) { target in
+            target.applyHierarchyState(state, undoManager: undoManager)
+        }
+        undoManager.setActionName("调整任务层级")
+    }
+
+    private func applyHierarchyState(_ state: WorkItemHierarchyState, undoManager: UndoManager) {
+        do {
+            let inverseState = try itemRepository.restoreHierarchyState(state)
+            selectedItemId = state.focusedItemId
+            reloadAll()
+            registerHierarchyUndo(inverseState, undoManager: undoManager)
+            statusMessage = "已恢复任务层级"
+        } catch {
+            errorMessage = error.localizedDescription
+        }
     }
 
     private func restore(_ items: [WorkItem], undoManager: UndoManager) {

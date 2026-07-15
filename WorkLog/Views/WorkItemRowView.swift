@@ -52,7 +52,7 @@ struct WorkItemRowView: View {
                 app.toggleDone(item)
             } label: {
                 Image(systemName: item.status.symbolName)
-                    .foregroundColor(isSelected ? .primary : item.status == .done ? .accentColor : .secondary)
+                    .foregroundColor(item.status == .done ? .accentColor : .secondary)
                     .font(.system(size: 17))
                     .frame(width: 24, height: 24)
             }

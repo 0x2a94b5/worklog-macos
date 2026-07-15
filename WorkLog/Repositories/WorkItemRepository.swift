@@ -1,5 +1,41 @@
 import Foundation
 
+struct WorkItemHierarchyState {
+    struct SortState {
+        let itemId: String
+        let sortOrder: Int
+    }
+
+    struct ParentCompletionState {
+        let itemId: String
+        let status: WorkItemStatus
+        let completedAt: Int64?
+        let updatedAt: Int64
+    }
+
+    let sourceItem: WorkItem
+    let sortStates: [SortState]
+    let parentCompletionStates: [ParentCompletionState]
+
+    var focusedItemId: String { sourceItem.id }
+}
+
+enum WorkItemHierarchyError: Error, LocalizedError {
+    case itemNotFound
+    case invalidParent
+    case differentMonth
+    case nestedChildren
+
+    var errorDescription: String? {
+        switch self {
+        case .itemNotFound: return "没有找到要调整的任务"
+        case .invalidParent: return "只能选择同月一级任务作为父任务"
+        case .differentMonth: return "不能跨月份调整任务层级"
+        case .nestedChildren: return "该任务包含子任务，请先提升或移动现有子任务"
+        }
+    }
+}
+
 final class WorkItemRepository {
     private let db: SQLiteDatabase
 
@@ -128,6 +164,100 @@ final class WorkItemRepository {
         }
     }
 
+    @discardableResult
+    func reparent(itemId: String, to newParentId: String?) throws -> WorkItemHierarchyState {
+        guard var item = try fetch(id: itemId) else {
+            throw WorkItemHierarchyError.itemNotFound
+        }
+        guard item.parentId != newParentId else {
+            return hierarchyState(sourceItem: item, sortItems: [item], parentItems: [])
+        }
+
+        let oldParentId = item.parentId
+        let targetParent: WorkItem?
+        if let newParentId {
+            guard newParentId != item.id,
+                  let parent = try fetch(id: newParentId),
+                  parent.parentId == nil
+            else { throw WorkItemHierarchyError.invalidParent }
+            guard parent.month == item.month else {
+                throw WorkItemHierarchyError.differentMonth
+            }
+            if item.parentId == nil, !(try fetchChildren(parentId: item.id)).isEmpty {
+                throw WorkItemHierarchyError.nestedChildren
+            }
+            targetParent = parent
+        } else {
+            guard oldParentId != nil else { throw WorkItemHierarchyError.invalidParent }
+            targetParent = nil
+        }
+
+        let oldSiblings = try siblings(month: item.month, parentId: oldParentId)
+        let destinationSiblings = try siblings(month: item.month, parentId: newParentId)
+        var affectedParents: [WorkItem] = []
+        if let oldParentId, let oldParent = try fetch(id: oldParentId) {
+            affectedParents.append(oldParent)
+        }
+        if let targetParent { affectedParents.append(targetParent) }
+        let state = hierarchyState(
+            sourceItem: item,
+            sortItems: oldSiblings + destinationSiblings,
+            parentItems: affectedParents
+        )
+
+        let oldRemaining = oldSiblings.filter { $0.id != item.id }
+        var destination = destinationSiblings.filter { $0.id != item.id }
+        let destinationIndex: Int
+        if newParentId == nil,
+           let oldParentId,
+           let parentIndex = destination.firstIndex(where: { $0.id == oldParentId }) {
+            destinationIndex = parentIndex + 1
+        } else {
+            destinationIndex = destination.count
+        }
+
+        item.parentId = newParentId
+        item.level = newParentId == nil ? 0 : 1
+        if let targetParent {
+            item.module = targetParent.module.isEmpty ? ModuleDefaults.uncategorized : targetParent.module
+            item.rawText = "   - [\(item.isDone ? "x" : " ")] \(item.title)"
+        } else {
+            item.rawText = "[\(item.isDone ? "x" : " ")]\(item.title)"
+        }
+        item.updatedAt = DateUtils.nowTimestamp()
+        destination.insert(item, at: min(destinationIndex, destination.count))
+
+        try db.inTransaction {
+            try updateHierarchy(item)
+            try updateSortOrders(oldRemaining)
+            try updateSortOrders(destination)
+            if let oldParentId { try synchronizeParentCompletion(parentId: oldParentId) }
+            if let newParentId { try synchronizeParentCompletion(parentId: newParentId) }
+        }
+        return state
+    }
+
+    @discardableResult
+    func restoreHierarchyState(_ state: WorkItemHierarchyState) throws -> WorkItemHierarchyState {
+        guard let currentSource = try fetch(id: state.sourceItem.id) else {
+            throw WorkItemHierarchyError.itemNotFound
+        }
+        let currentSortItems = try state.sortStates.compactMap { try fetch(id: $0.itemId) }
+        let currentParentItems = try state.parentCompletionStates.compactMap { try fetch(id: $0.itemId) }
+        let inverseState = hierarchyState(
+            sourceItem: currentSource,
+            sortItems: currentSortItems,
+            parentItems: currentParentItems
+        )
+
+        try db.inTransaction {
+            try updateHierarchy(state.sourceItem)
+            try restoreSortStates(state.sortStates)
+            try restoreParentCompletionStates(state.parentCompletionStates)
+        }
+        return inverseState
+    }
+
     func insert(_ item: WorkItem) throws {
         try db.execute("""
             INSERT INTO work_items (
@@ -241,6 +371,94 @@ final class WorkItemRepository {
         let status: WorkItemStatus = children.allSatisfy(\.isDone) ? .done : .todo
         guard parent.status != status else { return }
         try updateCompletion(id: parentId, status: status, timestamp: timestamp)
+    }
+
+    private func siblings(month: String, parentId: String?) throws -> [WorkItem] {
+        let items: [WorkItem]
+        if let parentId {
+            items = try fetchChildren(parentId: parentId)
+        } else {
+            items = try fetchWhere("month = ? AND parent_id IS NULL", [.text(month)])
+        }
+        return items.sorted { $0.sortOrder < $1.sortOrder }
+    }
+
+    private func hierarchyState(
+        sourceItem: WorkItem,
+        sortItems: [WorkItem],
+        parentItems: [WorkItem]
+    ) -> WorkItemHierarchyState {
+        var seen = Set<String>()
+        let sortStates = sortItems.compactMap { item -> WorkItemHierarchyState.SortState? in
+            guard seen.insert(item.id).inserted else { return nil }
+            return .init(itemId: item.id, sortOrder: item.sortOrder)
+        }
+        seen.removeAll()
+        let parentStates = parentItems.compactMap { item -> WorkItemHierarchyState.ParentCompletionState? in
+            guard seen.insert(item.id).inserted else { return nil }
+            return .init(
+                itemId: item.id,
+                status: item.status,
+                completedAt: item.completedAt,
+                updatedAt: item.updatedAt
+            )
+        }
+        return WorkItemHierarchyState(
+            sourceItem: sourceItem,
+            sortStates: sortStates,
+            parentCompletionStates: parentStates
+        )
+    }
+
+    private func updateSortOrders(_ items: [WorkItem]) throws {
+        for (index, item) in items.enumerated() where item.sortOrder != index + 1 {
+            try db.execute(
+                "UPDATE work_items SET sort_order = ? WHERE id = ? AND deleted_at IS NULL",
+                parameters: [.integer(Int64(index + 1)), .text(item.id)]
+            )
+        }
+    }
+
+    private func updateHierarchy(_ item: WorkItem) throws {
+        try db.execute("""
+            UPDATE work_items
+            SET module = ?, parent_id = ?, level = ?, sort_order = ?, raw_text = ?, updated_at = ?
+            WHERE id = ? AND deleted_at IS NULL
+        """, parameters: [
+            .text(item.module),
+            item.parentId.map(SQLiteValue.text) ?? .null,
+            .integer(Int64(item.level)),
+            .integer(Int64(item.sortOrder)),
+            .text(item.rawText),
+            .integer(item.updatedAt),
+            .text(item.id)
+        ])
+    }
+
+    private func restoreSortStates(_ states: [WorkItemHierarchyState.SortState]) throws {
+        for state in states {
+            try db.execute(
+                "UPDATE work_items SET sort_order = ? WHERE id = ? AND deleted_at IS NULL",
+                parameters: [.integer(Int64(state.sortOrder)), .text(state.itemId)]
+            )
+        }
+    }
+
+    private func restoreParentCompletionStates(
+        _ states: [WorkItemHierarchyState.ParentCompletionState]
+    ) throws {
+        for state in states {
+            try db.execute("""
+                UPDATE work_items
+                SET status = ?, completed_at = ?, updated_at = ?
+                WHERE id = ? AND deleted_at IS NULL
+            """, parameters: [
+                .text(state.status.rawValue),
+                state.completedAt.map(SQLiteValue.integer) ?? .null,
+                .integer(state.updatedAt),
+                .text(state.itemId)
+            ])
+        }
     }
 
     private func updateCompletion(id: String, status: WorkItemStatus, timestamp: Int64) throws {

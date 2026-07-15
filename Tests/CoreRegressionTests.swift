@@ -12,6 +12,7 @@ struct CoreRegressionTests {
         try testMigrationTransactionsAndBackup()
         try testDailyBackupAndDatabaseRecovery()
         try testHierarchicalCompletion()
+        try testHierarchyConversionAndRestore()
         print("Core regression tests passed")
     }
 
@@ -160,6 +161,61 @@ struct CoreRegressionTests {
         try repository.permanentlyDelete(newChild)
         let parentAfterDeletion = try repository.fetch(id: parent.id)
         try expect(parentAfterDeletion?.isDone == true, "删除最后一个未完成子任务后应重新计算主任务")
+    }
+
+    private static func testHierarchyConversionAndRestore() throws {
+        let folder = FileManager.default.temporaryDirectory
+            .appendingPathComponent("WorkLogReparentTests-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+
+        let db = try SQLiteDatabase(path: folder.appendingPathComponent("reparent.sqlite").path)
+        try DatabaseMigrator.migrate(db)
+        let repository = WorkItemRepository(db: db)
+
+        let parent = WorkItem.create(month: "2026-07", title: "目标任务", status: .done, module: "目标分类", sortOrder: 1)
+        let source = WorkItem.create(month: "2026-07", title: "待转换任务", module: "原分类", sortOrder: 2, rawText: "2. 待转换任务")
+        let unrelated = WorkItem.create(month: "2026-07", title: "无关任务", module: "无关分类", sortOrder: 3)
+        try repository.insertMany([parent, source, unrelated])
+
+        let beforeState = try repository.reparent(itemId: source.id, to: parent.id)
+        let converted = try repository.fetch(id: source.id)
+        let reopenedParent = try repository.fetch(id: parent.id)
+        try expect(converted?.parentId == parent.id && converted?.level == 1, "一级任务应转换为目标任务的二级任务")
+        try expect(converted?.module == "目标分类", "二级任务分类应跟随父任务")
+        try expect(converted?.rawText.hasPrefix("   - [ ]") == true, "转换后应刷新 Markdown 层级文本")
+        try expect(reopenedParent?.isDone == false, "移入未完成子任务后应恢复父任务")
+
+        guard var editedUnrelated = try repository.fetch(id: unrelated.id) else {
+            throw CoreTestError.failed("应读取到无关同级任务")
+        }
+        editedUnrelated.title = "撤销后仍应保留的新标题"
+        editedUnrelated.module = "新分类"
+        try repository.save(editedUnrelated)
+
+        let afterState = try repository.restoreHierarchyState(beforeState)
+        let restored = try repository.fetch(id: source.id)
+        let restoredParent = try repository.fetch(id: parent.id)
+        let preservedUnrelated = try repository.fetch(id: unrelated.id)
+        try expect(restored?.parentId == nil && restored?.module == "原分类", "撤销应恢复原层级和分类")
+        try expect(restored?.sortOrder == 2 && restored?.rawText == "2. 待转换任务", "撤销应恢复原排序和 Markdown 文本")
+        try expect(restoredParent?.isDone == true, "撤销应恢复目标父任务原完成状态")
+        try expect(
+            preservedUnrelated?.title == "撤销后仍应保留的新标题" && preservedUnrelated?.module == "新分类",
+            "层级撤销不应回滚无关同级任务的业务字段"
+        )
+
+        _ = try repository.restoreHierarchyState(afterState)
+        let redone = try repository.fetch(id: source.id)
+        try expect(redone?.parentId == parent.id, "重做应再次恢复转换结果")
+
+        let child = WorkItem.create(month: "2026-07", title: "已有子任务", parentId: source.id, level: 1)
+        _ = try repository.restoreHierarchyState(beforeState)
+        try repository.insertChild(child)
+        do {
+            _ = try repository.reparent(itemId: source.id, to: parent.id)
+            throw CoreTestError.failed("包含子任务的一级任务不应继续降级")
+        } catch WorkItemHierarchyError.nestedChildren {}
     }
 
     private static func testDailyBackupAndDatabaseRecovery() throws {

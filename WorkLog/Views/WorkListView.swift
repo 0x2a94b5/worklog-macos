@@ -193,7 +193,9 @@ struct WorkListView: View {
                 onMoveSelection: moveSelection,
                 onDelete: app.requestDeleteSelectedItem,
                 onToggleDone: toggleSelectedDone,
-                onBeginEditing: beginEditingSelected
+                onBeginEditing: beginEditingSelected,
+                onIndent: { app.indentSelectedItem(undoManager: undoManager) },
+                onOutdent: { app.promoteSelectedItem(undoManager: undoManager) }
             )
         )
     }
@@ -295,8 +297,31 @@ struct WorkListView: View {
             onCancelEditing: cancelEditing
         )
         .contextMenu {
-            if row.item.parentId == nil {
+            if case .month = app.selectedScope, row.item.parentId == nil {
                 Button("新增子任务") { createChild(for: row.item) }
+                if app.canConvertToChild(row.item) {
+                    if let previous = app.previousPrimaryItem(for: row.item) {
+                        Button("缩进为“\(previous.title)”的子任务") {
+                            app.convertToChild(row.item, parent: previous, undoManager: undoManager)
+                        }
+                    }
+                    Menu("转为子任务") {
+                        ForEach(app.availableParents(for: row.item)) { parent in
+                            Button(parent.title) {
+                                app.convertToChild(row.item, parent: parent, undoManager: undoManager)
+                            }
+                        }
+                    }
+                    .disabled(app.availableParents(for: row.item).isEmpty)
+                } else {
+                    Button("包含子任务，无法转换") {}
+                        .disabled(true)
+                }
+                Divider()
+            } else if case .month = app.selectedScope, row.item.parentId != nil {
+                Button("提升为一级任务") {
+                    app.promoteToPrimary(row.item, undoManager: undoManager)
+                }
                 Divider()
             }
             Button("修改标题") { beginEditing(row.item) }
@@ -559,6 +584,8 @@ private struct WorkListKeyboardMonitor: NSViewRepresentable {
     let onDelete: () -> Void
     let onToggleDone: () -> Void
     let onBeginEditing: () -> Void
+    let onIndent: () -> Void
+    let onOutdent: () -> Void
 
     func makeCoordinator() -> Coordinator {
         Coordinator()
@@ -577,6 +604,8 @@ private struct WorkListKeyboardMonitor: NSViewRepresentable {
         context.coordinator.onDelete = onDelete
         context.coordinator.onToggleDone = onToggleDone
         context.coordinator.onBeginEditing = onBeginEditing
+        context.coordinator.onIndent = onIndent
+        context.coordinator.onOutdent = onOutdent
     }
 
     static func dismantleNSView(_ nsView: NSView, coordinator: Coordinator) {
@@ -589,6 +618,8 @@ private struct WorkListKeyboardMonitor: NSViewRepresentable {
         var onDelete: (() -> Void)?
         var onToggleDone: (() -> Void)?
         var onBeginEditing: (() -> Void)?
+        var onIndent: (() -> Void)?
+        var onOutdent: (() -> Void)?
         weak var hostView: NSView?
         private var keyboardMonitor: Any?
 
@@ -626,6 +657,14 @@ private struct WorkListKeyboardMonitor: NSViewRepresentable {
                 case 36, 76:
                     guard !event.isARepeat else { return nil }
                     self.onBeginEditing?()
+                    return nil
+                case 48:
+                    guard !event.isARepeat else { return nil }
+                    if event.modifierFlags.contains(.shift) {
+                        self.onOutdent?()
+                    } else {
+                        self.onIndent?()
+                    }
                     return nil
                 default:
                     return event
